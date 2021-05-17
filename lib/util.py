@@ -26,7 +26,10 @@ Returns:
   HTML 문서
 """
 def crawlHTMLFromUrl(url):
-  return requests.get(url).text
+  try:
+   return requests.get(url).text 
+  except:
+    return None
 
 """
 Desc: 
@@ -89,14 +92,14 @@ def generateTripleFromUrl(url):
   triples = []
 
   html = crawlHTMLFromUrl(url)
-  # 1. html로부터 triple을 추출
-  trples.append(extractTriplesFromHTML(html))
+  if html != None:
+    # 1. html로부터 triple을 추출
+    trples.append(extractTriplesFromHTML(html))
 
-  # 2. text로부터 triple을 추출
-  text = generateTextFromHTML(html)
-  prtmtText = preprocessText(text)
-  triples.append(extractTriplesFromText(prtmtText))
-  
+    # 2. text로부터 triple을 추출
+    text = generateTextFromHTML(html)
+    prtmtText = preprocessText(text)
+    triples.append(extractTriplesFromText(prtmtText))
   return triples
 
 """

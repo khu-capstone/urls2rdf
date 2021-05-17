@@ -13,7 +13,8 @@ def main(args):
   
   triples = []
   for url in urls:
-    # triples.extend(generateTripleFromUrl(url))
+    print(url)
+    triples.extend(generateTripleFromUrl(url))
 
   # rdf = generateRdfFromTriples(triples)
   # knowledgeGraph = generateKnowledgeGraphFromRdf(rdf)
