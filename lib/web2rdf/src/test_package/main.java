@@ -1,32 +1,22 @@
 package test_package;
+
 import edu.stanford.nlp.coref.CorefCoreAnnotations;
 import edu.stanford.nlp.coref.data.CorefChain;
-import edu.stanford.nlp.coref.data.Dictionaries;
-import edu.stanford.nlp.coref.data.Mention;
 import edu.stanford.nlp.ie.util.RelationTriple;
 import edu.stanford.nlp.io.IOUtils;
 import edu.stanford.nlp.ling.CoreAnnotations;
-import edu.stanford.nlp.ling.CoreLabel;
 import edu.stanford.nlp.naturalli.NaturalLogicAnnotations;
-import edu.stanford.nlp.naturalli.OpenIE;
-import edu.stanford.nlp.naturalli.SentenceFragment;
 import edu.stanford.nlp.pipeline.Annotation;
-import edu.stanford.nlp.pipeline.CoreDocument;
-import edu.stanford.nlp.pipeline.CoreEntityMention;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
-import edu.stanford.nlp.semgraph.SemanticGraph;
-import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations;
-import edu.stanford.nlp.tagger.maxent.MaxentTagger;
 import edu.stanford.nlp.util.CoreMap;
-import edu.stanford.nlp.util.IntPair;
 import edu.stanford.nlp.util.PropertiesUtils;
 import org.apache.jena.rdf.model.*;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
+
 import java.io.IOException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class main {
     public static void main(String[] args) throws IOException {
@@ -34,7 +24,7 @@ public class main {
         Document doc = Jsoup.connect("https://en.wikipedia.org/wiki/Korea").get();
         Elements pTags = doc.getElementsByTag("p");
         String bodyText = Jsoup.parse(pTags.toString()).text();
-
+        /// 이전 연구 ///
 //        //stanford pos tagger 형태소 분석기를 이용한 태깅
 //        MaxentTagger tagger = new MaxentTagger("taggers/english-left3words-distsim.tagger");
 //        String tagged = tagger.tagString(bodyText);
@@ -78,23 +68,11 @@ public class main {
 //            }
 //        }
 
-//        // Jena로 RDF 추출
-//        Model model = ModelFactory.createDefaultModel();
-//        for(String[] statement : tripples){
-//            Resource s = model.createResource("http://subject/"+statement[0]);
-//            Property p = model.createProperty("http://predicate/"+statement[1]);
-//            RDFNode o = model.createLiteral(statement[2]);
 //
-//            if(s.hasProperty(p)){
-//                s.addProperty(p,model.createResource().addProperty(p,o));
-//            }else {
-//                s.addProperty(p,o);
-//            }
-//        }
-//        model.write(System.out);
-//        //RDFDataMgr.write(System.out, model, Lang.NTRIPLES); // N-TRIPLES 형태로 출력
 
         // stanford OpenIE
+
+        // 대명사 처리 파이프라인 설정
         Properties props = PropertiesUtils.asProperties(
                 "annotators", "tokenize,ssplit,pos,lemma,ner,parse,coref"
         );
@@ -108,7 +86,7 @@ public class main {
             //text = bodyText;
         }
 
-
+        // sentence splitting 으로 문장 나누기
         Annotation docu = new Annotation(text);
         pipeline.annotate(docu);
         List<String> sentList = new ArrayList<>();
@@ -117,22 +95,22 @@ public class main {
         }
 
 
-
+        // coref 체인 치환 작업
         String newText = "";
         Collection<CorefChain> values = docu.get(CorefCoreAnnotations.CorefChainAnnotation.class).values();
         for (CorefChain cc : values) {
             //System.out.println("\t" + cc.getMentionsInTextualOrder());
             List<CorefChain.CorefMention> mentionsInTextualOrder = cc.getMentionsInTextualOrder();
             String coreWord = "";
-            for (int i = 0; i < mentionsInTextualOrder.size(); i++){
-                if (i == 0){
+            for (int i = 0; i < mentionsInTextualOrder.size(); i++) {
+                if (i == 0) {
                     coreWord = mentionsInTextualOrder.get(i).mentionSpan; // 첫번째 명사를 원래 명사로 지정
                 }
                 String mention = mentionsInTextualOrder.get(i).mentionSpan; // 대명사 가져오기
-                int sentNum = mentionsInTextualOrder.get(i).sentNum -1; //문장 번호 가져오기
+                int sentNum = mentionsInTextualOrder.get(i).sentNum - 1; //문장 번호 가져오기
                 String modiSent = sentList.get(sentNum); // 수정될 문장 가져오고
-                modiSent = modiSent.replaceAll(mention,coreWord); // mention(대명사를) coreWord(원래단어)로 바꿔주고
-                sentList.set(sentNum,modiSent); // 수정된 문자열로 바꿔줌
+                modiSent = modiSent.replaceAll(mention, coreWord); // mention(대명사를) coreWord(원래단어)로 바꿔주고
+                sentList.set(sentNum, modiSent); // 수정된 문자열로 바꿔줌
             }
         }
 
@@ -147,16 +125,19 @@ public class main {
 
         System.out.println("\n \n");
 
-
+        // openie 파이프라인 설정
         props = PropertiesUtils.asProperties(
                 "annotators", "tokenize,ssplit,pos,lemma,parse,natlog,openie"
         );
-        props.setProperty("openie.max_entailments_per_clause","100");
-        props.setProperty("openie.triple.strict","false");
+        props.setProperty("openie.max_entailments_per_clause", "100");
+        props.setProperty("openie.triple.strict", "false");
         pipeline = new StanfordCoreNLP(props);
 
         docu = new Annotation(newText);
         pipeline.annotate(docu);
+
+        // 트리플 추출
+        List<String[]> tripleList = new ArrayList<>();
         int sentNo = 0;
         for (CoreMap sentence : docu.get(CoreAnnotations.SentencesAnnotation.class)) {
             System.out.println("Sentence #" + ++sentNo + ": " + sentence.get(CoreAnnotations.TextAnnotation.class));
@@ -170,26 +151,41 @@ public class main {
             // Print the triples
             for (RelationTriple triple : triples) {
                 System.out.println(triple.confidence + "\t" +
-                        "<"+triple.subjectGloss()+">" + "\t" +
-                        "<"+triple.relationGloss()+">" + "\t" +
-                        "<"+triple.objectGloss()+">");
+                        "<" + triple.subjectGloss() + ">" + "\t" +
+                        "<" + triple.relationGloss() + ">" + "\t" +
+                        "<" + triple.objectGloss() + ">");
+                String[] statement = {triple.subjectGloss(), triple.relationGloss(), triple.objectGloss()};
+                tripleList.add(statement);
             }
             System.out.println("\n");
-            // Alternately, to only run e.g., the clause splitter:
-//            List<SentenceFragment> clauses = new OpenIE(props).clausesInSentence(sentence);
-//            for (SentenceFragment clause : clauses) {
-//                System.out.println(clause.parseTree.toString(SemanticGraph.OutputFormat.LIST));
-//            }
-//            System.out.println();
+
         }
+        // Jena로 RDF 추출
+        Model model = ModelFactory.createDefaultModel();
+        String dr = "http://dbpedia.org/resource/";
+        String dp = "http://dbpedia.org/property/";
+        for (String[] statement : tripleList) {
+            Resource s = model.createResource(dr + statement[0]);
+            Property p = model.createProperty(dp + statement[1]);
+            RDFNode o = model.createLiteral(dr + statement[2]);
+            if (s.hasProperty(p)) {
+                s.addProperty(p, model.createResource().addProperty(p, o));
+            } else {
+                s.addProperty(p, o);
+            }
+        }
+        model.write(System.out);
+        //RDFDataMgr.write(System.out, model, Lang.NTRIPLES); // N-TRIPLES 형태로 출력
+
 
     }
+
     //map 정렬 메소드
     public static List sortByValue(final Map map) {
         List<String> list = new ArrayList();
         list.addAll(map.keySet());
-        Collections.sort(list,new Comparator() {
-            public int compare(Object o1,Object o2) {
+        Collections.sort(list, new Comparator() {
+            public int compare(Object o1, Object o2) {
                 Object v1 = map.get(o1);
                 Object v2 = map.get(o2);
                 return ((Comparable) v2).compareTo(v1);
