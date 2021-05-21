@@ -2,6 +2,24 @@ from bs4 import BeautifulSoup
 import requests
 import sre_yield
 
+def switchArg(option, arg):
+  if (option == '-r' or option == '--regex'):
+    return generateTextsFromRegex(arg[0])
+  if (option == '-l' or option == '--list'):
+    return arg
+
+def urls2rdf(args):
+  # regex 표현식인지 먼저 filtering
+  urls = switchArg(args[0], args[1:])
+  
+  triples = []
+  for url in urls:
+    print(url)
+    triples.extend(generateTripleFromUrl(url))
+
+  # rdf = generateRdfFromTriples(triples)
+  # knowledgeGraph = generateKnowledgeGraphFromRdf(rdf)\
+
 """
 Desc: 
   정규포현식으로 표현된 데이터를 각 각의 text로 생성합니다.
