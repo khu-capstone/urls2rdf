@@ -11,80 +11,49 @@ import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.util.CoreMap;
 import edu.stanford.nlp.util.PropertiesUtils;
 import org.apache.jena.rdf.model.*;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFDataMgr;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.util.*;
-
+/**
+ * input : args[0] -> url, args[1]~[끝] -> string
+ */
 public class main {
+
     public static void main(String[] args) throws IOException {
+
         //Jsoup 파싱
-        Document doc = Jsoup.connect("https://en.wikipedia.org/wiki/Korea").get();
-        Elements pTags = doc.getElementsByTag("p");
-        String bodyText = Jsoup.parse(pTags.toString()).text();
-        /// 이전 연구 ///
-//        //stanford pos tagger 형태소 분석기를 이용한 태깅
-//        MaxentTagger tagger = new MaxentTagger("taggers/english-left3words-distsim.tagger");
-//        String tagged = tagger.tagString(bodyText);
-//
-//        //핵심 고유단어 추출작업
-//        String[] taggedArr = tagged.split(" ");
-//        List<String> nnp = Arrays.stream(taggedArr).filter(word -> word.contains("_NNP")).collect(Collectors.toList());
-//        Hashtable<String,Integer> freqOfWordTable = new Hashtable<>();
-//        for (String word : nnp) {
-//            Integer freq = freqOfWordTable.get(word); // 단어를 꺼낸다. word가 key이고 freq가 value
-//            freqOfWordTable.put(word, (freq == null) ? 1: freq +1);
-//        }
-//        List sortedList = sortByValue(freqOfWordTable);
-//        String coreNoun = sortedList.get(0).toString();
+//        Document doc = Jsoup.connect("https://en.wikipedia.org/wiki/Korea").get();
+//        Elements pTags = doc.getElementsByTag("p");
+//        String bodyText = Jsoup.parse(pTags.toString()).text();
+        String text = "Korea (officially the \"Korean Peninsula\") is a region in East Asia. Since 1945 it has been divided into the two parts which soon became the two sovereign states: North Korea (officially the \"Democratic People's Republic of Korea\") and South Korea (officially the \"Republic of Korea\"). Korea consists of the Korean Peninsula, Jeju Island, and several minor islands near the peninsula. It is bordered by China to the northwest and Russia to the northeast. It is separated from Japan to the east by the Korea Strait and the Sea of Japan (East Sea). During the first half of the 1st millennium, Korea was divided between the three competing states of Goguryeo, Baekje, and Silla, together known as the Three Kingdoms of Korea.";
+        String url = "https://en.wikipedia.org/wiki/";
 
-//        //트리플 추출 과정
-//        String[] sentences = tagged.split("\\._\\.");
-//        List<String[]> tripples = new ArrayList<>();
-//        for (String sentence : sentences){
-//            if (sentence.contains(coreNoun)) {
-//                String[] words = sentence.split(" ");
-//                String subject = "";
-//                String predicate = "";
-//                String object = "";
-//                for (String word:words) {
-//                    if(word.equals(coreNoun)) {
-//                        String[] removeTag = word.split("_");
-//                        subject = removeTag[0];
-//                    }else if(word.contains("_VB") && !subject.isEmpty()) {
-//                        String[] removeTag = word.split("_");
-//                        predicate = removeTag[0];
-//                    }else if(word.contains("_NNP") && !predicate.isEmpty()) {
-//                        String[] removeTag = word.split("_");
-//                        object = removeTag[0];
-//                    }
-//                    if(!subject.isEmpty() && !predicate.isEmpty() && !object.isEmpty()){
-//                        String[] tripple = {subject,predicate,object};
-//                        tripples.add(tripple);
-//                    }
-//                }
-//            }
-//        }
+        List<String[]> triples = text2triple(text);
+        triple2rdf(triples,url);
 
-//
+    }
+
+    /**
+     * input : text( string )
+     * output : triples( List<String[]> )
+     */
+    public static List<String[]> text2triple (String text) {
 
         // stanford OpenIE
-
         // 대명사 처리 파이프라인 설정
         Properties props = PropertiesUtils.asProperties(
                 "annotators", "tokenize,ssplit,pos,lemma,ner,parse,coref"
         );
         StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
 
-        String text;
-        if (args.length > 0) {
-            text = IOUtils.slurpFile(args[0]);
-        } else {
-            text = "Korea (officially the \"Korean Peninsula\") is a region in East Asia. Since 1945 it has been divided into the two parts which soon became the two sovereign states: North Korea (officially the \"Democratic People's Republic of Korea\") and South Korea (officially the \"Republic of Korea\"). Korea consists of the Korean Peninsula, Jeju Island, and several minor islands near the peninsula. It is bordered by China to the northwest and Russia to the northeast. It is separated from Japan to the east by the Korea Strait and the Sea of Japan (East Sea). During the first half of the 1st millennium, Korea was divided between the three competing states of Goguryeo, Baekje, and Silla, together known as the Three Kingdoms of Korea.";
-            //text = bodyText;
-        }
 
         // sentence splitting 으로 문장 나누기
         Annotation docu = new Annotation(text);
@@ -135,7 +104,7 @@ public class main {
 
         docu = new Annotation(newText);
         pipeline.annotate(docu);
-
+//
         // 트리플 추출
         List<String[]> tripleList = new ArrayList<>();
         int sentNo = 0;
@@ -154,44 +123,57 @@ public class main {
                         "<" + triple.subjectGloss() + ">" + "\t" +
                         "<" + triple.relationGloss() + ">" + "\t" +
                         "<" + triple.objectGloss() + ">");
-                String[] statement = {triple.subjectGloss(), triple.relationGloss(), triple.objectGloss()};
+                String[] statement = {triple.subjectGloss().replaceAll(" ", "-"), triple.relationGloss().replaceAll(" ", "-"), triple.objectGloss().replaceAll(" ", "-")};
                 tripleList.add(statement);
             }
             System.out.println("\n");
 
         }
+        return tripleList;
+    }
+
+    /**
+     * input :
+     *  - triples(string[n][3])
+     *  - url(string)
+     * output :
+     *  - rdf(string)
+     */
+    public static String triple2rdf(List<String[]> tripleList, String url) {
         // Jena로 RDF 추출
         Model model = ModelFactory.createDefaultModel();
-        String dr = "http://dbpedia.org/resource/";
-        String dp = "http://dbpedia.org/property/";
+
         for (String[] statement : tripleList) {
-            Resource s = model.createResource(dr + statement[0]);
-            Property p = model.createProperty(dp + statement[1]);
-            RDFNode o = model.createLiteral(dr + statement[2]);
-            if (s.hasProperty(p)) {
-                s.addProperty(p, model.createResource().addProperty(p, o));
-            } else {
-                s.addProperty(p, o);
-            }
+            Resource s = model.createResource(url + statement[0]);
+            Property p = model.createProperty("predicate:" + statement[1]);
+            RDFNode o = model.createLiteral(url + statement[2]);
+            model.add(s,p,o);
         }
-        model.write(System.out);
-        //RDFDataMgr.write(System.out, model, Lang.NTRIPLES); // N-TRIPLES 형태로 출력
 
+        //      파일로 출력
+//        File file = new File("./hello.ttl");
+//        FileWriter fw = new FileWriter(file);
+//
+//        RDFDataMgr.write(fw, model, Lang.TTL);
+
+        // 시스템 출력
+        RDFDataMgr.write(System.out, model, Lang.TTL);
+
+        //turtle을 String 으로 변환
+        String syntax = "TURTLE"; // also try "N-TRIPLE" and "TURTLE"
+        StringWriter out = new StringWriter();
+        model.write(out, syntax);
+        String result = out.toString();
+
+        return result;
+    }
+
+    /**
+     * input : rdf(string)
+     * output : 미정
+     */
+    public static void rdf2kg(String rdf) {
 
     }
 
-    //map 정렬 메소드
-    public static List sortByValue(final Map map) {
-        List<String> list = new ArrayList();
-        list.addAll(map.keySet());
-        Collections.sort(list, new Comparator() {
-            public int compare(Object o1, Object o2) {
-                Object v1 = map.get(o1);
-                Object v2 = map.get(o2);
-                return ((Comparable) v2).compareTo(v1);
-            }
-        });
-        //Collections.reverse(list); // 주석시 오름차순
-        return list;
-    }
 }
