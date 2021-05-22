@@ -1,6 +1,9 @@
 from bs4 import BeautifulSoup
 import requests
+import json
 import sre_yield
+from lib.article import Article
+from graphviz import Digraph
 
 def switchArg(option, arg):
   if (option == '-r' or option == '--regex'):
@@ -16,9 +19,14 @@ def urls2rdf(args):
   for url in urls:
     print(url)
     triples.extend(generateTripleFromUrl(url))
+  print(triples)
 
-  # rdf = generateRdfFromTriples(triples)
-  # knowledgeGraph = generateKnowledgeGraphFromRdf(rdf)\
+  rdf = generateRdfFromTriples(triples, urls[0])
+
+  f = open('out/rdf.ttl', 'w')
+  f.write(rdf)
+
+  knowledgeGraph = generateKnowledgeGraphFromTriples(triples)\
 
 """
 Desc: 
@@ -45,8 +53,9 @@ Returns:
 """
 def crawlHTMLFromUrl(url):
   try:
-   return requests.get(url).text 
-  except:
+    article = Article(url)
+    return article.html 
+  except e:
     return None
 
 """
@@ -61,7 +70,7 @@ Returns:
 """
 def extractTriplesFromHTML(html):
   # TODO: 구현
-  return html
+  return []
 
 """
 Desc: 
@@ -73,14 +82,12 @@ Args:
 Returns:
   regex를 통해서 생성된 text map을 리턴합니다.
 """
-def generateTextFromHTML(html):
-  soup = BeautifulSoup(html)
-  script_tag = soup.find_all(['script', 'style', 'header', 'footer', 'form'])
-
-  for script in script_tag:
-    script.extract()
-  content = soup.get_text('\n', strip=True)
-  return content
+def crawlTextFromUrl(url):
+  try:
+    article = Article(url)
+    return article.text
+  except:
+    return None
 
 """
 Desc: 
@@ -92,9 +99,12 @@ Args:
 Returns:
   text로 부터 triple들을 추출합니다..
 """
-def extractTriplesFromText(text):
-  # TODO: 구현
-  return text
+def generateTriplesFromText(text):
+  api_url = 'http://localhost:8001/api/text2triple'
+
+  headers = {'Content-Type': 'multipart/form-data; charset=utf-8'} 
+  res = requests.post(api_url, files=[('text', text)], headers=headers)
+  return res.json()
 
 """
 Desc: 
@@ -109,15 +119,15 @@ Returns:
 def generateTripleFromUrl(url):
   triples = []
 
+  # 1. html로부터 triple을 추출
   html = crawlHTMLFromUrl(url)
   if html != None:
-    # 1. html로부터 triple을 추출
-    trples.append(extractTriplesFromHTML(html))
-
-    # 2. text로부터 triple을 추출
-    text = generateTextFromHTML(html)
-    prtmtText = preprocessText(text)
-    triples.append(extractTriplesFromText(prtmtText))
+    triples.extend(extractTriplesFromHTML(html))
+  
+  # 2. text로부터 triple을 추출
+  text = crawlTextFromUrl(url)
+  if text != None:
+    triples.extend(generateTriplesFromText(text))
   return triples
 
 """
@@ -130,10 +140,19 @@ Args:
 Returns:
   turtle 형태의 RDF
 """
-def generateRdfFromTriples(triples):
-  # TODO: 구현
-  return triples
+def generateRdfFromTriples(triples, url):
+  api_url = 'http://localhost:8001/api/triple2rdf'
 
+  headers = {'Content-Type': 'multipart/form-data; charset=utf-8'} 
+  
+  tripleString = "["
+  for i in triples:
+    tripleString += "[\"" + "\",\"".join(i) + "\"]"
+  tripleString += "]"
+
+  res = requests.post(api_url, files=[('triple',tripleString), ('url', url)], headers=headers)
+  
+  return res.text
 
 """
 Desc: 
@@ -145,6 +164,39 @@ Args:
 Returns:
   knowledge graph
 """
-def generateKnowledgeGraphFromRdf(rdf):
-  # TODO: 구현
-  return rdf
+def generateKnowledgeGraphFromTriples(triples):
+  prd = "predicate:"
+
+  triples = list(map(lambda x: [x[0], prd+x[1], x[2]], triples))
+
+  # 너무 많으면 그래프가 안 그려져서 100개씩 끊어서 저장
+  triple100List = []
+  cnt = 0
+  hundred = []
+  for ts in triples:
+    if cnt < 100:
+      hundred.append(ts)
+      cnt += 1
+    else:
+      triple100List.append(hundred[:])
+      hundred = []
+      cnt = 0
+
+  # 그래프 매핑
+  num = 0
+  sbjList = []
+  for t100 in triple100List:
+    f = Digraph('finite_state_machine', filename='out/kg/fsm.gv'+str(num), format='png')
+    f.attr(rankdir='LR', size='300,300')
+    for triple in t100:
+      if url+triple[0] not in sbjList:
+        sbjList.append(triple[0])
+        f.attr('node', shape='doublecircle')
+        f.node(triple[0])
+        f.attr('node', shape='circle')
+        f.edge(triple[0], triple[2], label=triple[1])
+      else:
+        f.attr('node', shape='circle')
+        f.edge(triple[0], triple[2], label=triple[1])
+    f.view()
+    num += 1
