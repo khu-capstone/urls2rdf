@@ -21,6 +21,9 @@ python 3.9 를 기반으로 합니다.
 
 ```bash
 $ pip install -r requirements.txt
+$ cd externals/text2rdf
+# Intellij를 이용하여 해당 프로젝트를 build합니다.
+$ java -jar text2rdf.jar
 ```
 
 ### CMD Run
