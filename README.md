@@ -9,7 +9,7 @@ url pattern을 regex로 입력받거나 리스트로 데이터를 입력받아 �
 3. html 문서에서 li, ul tag에서 의미를 추출하여 triple을 생성합니다.
 4. html의 text를 추출하여, 이 안에서 의미를 추출합니다.
 5. 추출한 triple을 이용하여 RDF를 생성합니다.
-6. RDF를 기반으로 하여 Knowledge Graph를 생성합니다.
+6. Triple을 기반으로 하여 Knowledge Graph를 생성합니다.
 
 
 ### Requirement
