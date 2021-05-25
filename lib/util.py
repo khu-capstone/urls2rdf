@@ -26,8 +26,8 @@ def urls2rdf(args):
   f = open('out/rdf.ttl', 'w')
   f.write(rdf)
 
-  knowledgeGraph = generateKnowledgeGraphFromTriples(triples)\
-
+  knowledgeGraph = generateKnowledgeGraphFromTriples(triples, urls[0])
+  return rdf
 """
 Desc: 
   정규포현식으로 표현된 데이터를 각 각의 text로 생성합니다.
@@ -164,7 +164,7 @@ Args:
 Returns:
   knowledge graph
 """
-def generateKnowledgeGraphFromTriples(triples):
+def generateKnowledgeGraphFromTriples(triples, url):
   prd = "predicate:"
 
   triples = list(map(lambda x: [x[0], prd+x[1], x[2]], triples))

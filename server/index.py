@@ -1,8 +1,15 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
+
+from lib.util import *
+
 class IntroHandler(BaseHTTPRequestHandler):
   
   def do_GET(self):
+    print(self.path)
     if "png" in self.path:
       self.send_response(200)
       self.send_header('Content-type', 'image/png')
@@ -11,6 +18,12 @@ class IntroHandler(BaseHTTPRequestHandler):
     elif "css" in self.path:
       self.send_response(200)
       self.send_header('Content-type', 'text/css')
+      self.end_headers()
+      self.wfile.write(open(self.path[1:]).read().encode('utf-8'))
+    elif "ttl" in self.path:
+      print("I'm ttl")
+      self.send_response(200)
+      self.send_header('Content-type', 'text/plain')
       self.end_headers()
       self.wfile.write(open(self.path[1:]).read().encode('utf-8'))
     elif "/" == self.path:
@@ -32,10 +45,10 @@ class IntroHandler(BaseHTTPRequestHandler):
           </head>
           <body>
             <div class="s129">
-              <form>
+              <form onsubmit="searchResult(event);">
                 <div class="inner-form">
                   <div class="input-field">
-                    <button class="btn-search" type="button">
+                    <button class="btn-search" type="button" onclick="searchResult(event);">
                       <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
                         <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
                       </svg>
@@ -45,9 +58,47 @@ class IntroHandler(BaseHTTPRequestHandler):
                 </div>
               </form>
             </div>
-          </body><!-- This templates was made by Colorlib (https://colorlib.com) -->
+            <script>
+              function searchResult(e) {
+                e.preventDefault();
+                const url = document.getElementById('search').value;
+                location.href = ("/result?url=" + url);
+              }
+            </script>
+          </body>
         </html>
         '''.encode('utf-8')
+      )
+    elif "/result":
+      print(self.path)
+      args = ['-l', self.path.split('url=')[1]]
+      rdf = urls2rdf(args)
+
+      self.send_response(200)
+      self.send_header('Content-type', 'text/html')
+      self.end_headers()
+      self.wfile.write(
+        '''
+        <html>
+          <head>
+            <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+            <meta name="author" content="colorlib.com">
+            <link rel="icon" herf="/resource/image/favicon.png" />
+            <link rel="shortcut icon" href="/resource/image/favicon.png" />
+            <link href="https://fonts.googleapis.com/css?family=Montserrat:500" rel="stylesheet" />
+            <link href="/resource/css/main.css" rel="stylesheet" />
+          </head>
+          <body>
+            <div class="s129">
+            </div>
+            <script>
+              location.href = "/out/rdf.ttl"
+            </script>
+          </body>
+        </html>
+        '''.format(rdf).encode('utf-8')
       )
     else:
       self.send_response('404')
