@@ -305,4 +305,4 @@ class SentenceBroker(Broker):
                 if i < len(p) and 'VB' in pos[i + 1][1]:
                     return i, [p[0], pos[i + 1][0]]
                 return i, [p[0]]
-        return None
+        return i, None
