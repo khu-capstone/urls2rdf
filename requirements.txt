@@ -7,3 +7,5 @@ requests==2.25.1
 soupsieve==2.2.1
 sre-yield==1.2
 urllib3==1.26.4
+nltk==3.6.2
+stanford-openie==1.0.3

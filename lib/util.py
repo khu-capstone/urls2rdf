@@ -3,6 +3,7 @@ import requests
 import json
 import sre_yield
 from lib.article import Article
+from lib.broker import SentenceBroker
 from graphviz import Digraph
 
 def switchArg(option, arg):
@@ -55,7 +56,7 @@ def crawlHTMLFromUrl(url):
   try:
     article = Article(url)
     return article.html 
-  except e:
+  except:
     return None
 
 """
@@ -66,12 +67,21 @@ Args:
   html
 
 Returns:
-  전처리를 수행한 HTML문서를 리턴합니다.
+  HTML 문서에서 ul 또는 li 에 해당하는 트리플만 추출합니다.
 """
 def extractTriplesFromHTML(html):
-  # TODO: 구현
-  return []
+  sb = SentenceBroker(html)
+  text = ''
+  text += sb.getListText('ul') # get ul tag
+  text += sb.getListText('ol') # get ol tag
+  if not text:
+    return ''
 
+  api_url = 'http://localhost:8001/api/text2triple'
+
+  headers = {'Content-Type': 'multipart/form-data; charset=utf-8'} 
+  res = requests.post(api_url, files=[('text', text)], headers=headers)
+  return res.json()
 """
 Desc: 
   HTML 문서로 부터 text를 생성합니다.
